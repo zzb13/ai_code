@@ -8,9 +8,7 @@ GitHub 自动化助手 CLI
 import argparse
 import subprocess
 import sys
-import json
 import os
-from pathlib import Path
 
 
 class GitHubAssistant:
