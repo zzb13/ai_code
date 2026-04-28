@@ -59,7 +59,7 @@ class TestMathOperations:
 def test_exception_handling():
     """测试异常处理"""
     with pytest.raises(ZeroDivisionError):
-        result = 1 / 0
+        1 / 0
 
 
 def test_import_github_assistant():

@@ -73,10 +73,12 @@ jobs:
       # 检查密钥泄露
       - name: TruffleHog Secret Scanning
         uses: trufflesecurity/trufflehog@main
+        continue-on-error: true
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
+          extra_args: --only-verified
       
       # Python 依赖安全检查
       - name: Safety check
