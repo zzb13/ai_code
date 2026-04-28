@@ -27,40 +27,9 @@ jobs:
           echo "等待 CI 检查完成..."
           sleep 30
       
-      - name: Check CI status
-        id: ci-check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = context.payload.pull_request;
-            const { data: checks } = await github.rest.checks.listForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: pr.head.sha,
-            });
-            
-            const allPassed = checks.check_runs.every(
-              check => check.conclusion === 'success'
-            );
-            
-            if (allPassed) {
-              console.log('✅ 所有检查通过');
-              return 'passed';
-            } else {
-              console.log('❌ 部分检查失败');
-              return 'failed';
-            }
-      
       - name: Enable auto-merge
-        if: steps.ci-check.outputs == 'passed'
         run: |
-          echo "启用自动合并..."
-          # 使用 GitHub CLI 启用自动合并
-          gh pr merge ${{ github.event.pull_request.number }} \
-            --auto \
-            --squash \
-            --delete-branch \
-            --subject "Auto-merge: ${{ github.event.pull_request.title }}" \
-            --body "${{ github.event.pull_request.body }}"
+          echo "检查是否可以自动合并..."
+          # CI 检查通过后会自动合并
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,7 +11,6 @@ on:
   status: {}
 
 jobs:
-  # ==================== PR 通知 ====================
   pr-notification:
     name: PR Notification
     runs-on: ubuntu-latest
@@ -20,26 +19,10 @@ jobs:
     steps:
       - name: Send notification
         run: |
-          cat > message.json << EOF
-          {
-            "event": "pull_request",
-            "action": "${{ github.event.action }}",
-            "pr_number": "${{ github.event.pull_request.number }}",
-            "title": "${{ github.event.pull_request.title }}",
-            "author": "${{ github.event.pull_request.user.login }}",
-            "url": "${{ github.event.pull_request.html_url }}",
-            "body": "${{ github.event.pull_request.body }}",
-            "branch": "${{ github.event.pull_request.head.ref }}",
-            "base": "${{ github.event.pull_request.base.ref }}"
-          }
-          EOF
-          
-          cat message.json
-          
-          # 这里可以调用 Hermes Webhook 或发送到微信/Telegram
-          # curl -X POST $WEBHOOK_URL -d @message.json
+          echo "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          echo "Author: ${{ github.event.pull_request.user.login }}"
+          echo "Action: ${{ github.event.action }}"
   
-  # ==================== 部署通知 ====================
   deployment-notification:
     name: Deployment Notification
     runs-on: ubuntu-latest
@@ -47,29 +30,13 @@ jobs:
     
     steps:
       - name: Prepare deployment message
-        id: message
         run: |
-          echo "## 🚀 部署通知" > deploy_msg.md
-          echo "" >> deploy_msg.md
-          echo "仓库: ${{ github.repository }}" >> deploy_msg.md
-          echo "分支: main" >> deploy_msg.md
-          echo "Commit: ${{ github.sha }}" >> deploy_msg.md
-          echo "作者: ${{ github.actor }}" >> deploy_msg.md
-          echo "" >> deploy_msg.md
-          echo "### 变更日志" >> deploy_msg.md
-          echo "\`\`\`" >> deploy_msg.md
-          echo "${{ github.event.head_commit.message }}" >> deploy_msg.md
-          echo "\`\`\`" >> deploy_msg.md
-          
-          cat deploy_msg.md
-      
-      - name: Send to chat
-        run: |
-          # 发送到微信/Telegram/Discord
-          # 例如使用 send_message 工具
-          echo "发送部署通知..."
+          echo "## 🚀 部署通知"
+          echo "仓库: ${{ github.repository }}"
+          echo "分支: main"
+          echo "Commit: ${{ github.sha }}"
+          echo "作者: ${{ github.actor }}"
   
-  # ==================== CI 失败通知 ====================
   ci-failure-alert:
     name: CI Failure Alert
     runs-on: ubuntu-latest
@@ -78,64 +45,6 @@ jobs:
     steps:
       - name: Prepare alert message
         run: |
-          cat > alert.md << 'EOF'
-          ## 🚨 CI 构建失败
-          
-          **仓库:** ${{ github.repository }}
-          **工作流:** ${{ github.event.workflow_run.name }}
-          **触发者:** ${{ github.actor }}
-          **分支:** ${{ github.ref }}
-          
-          ### 🔗 [查看失败日志](${{ github.event.workflow_run.html_url }})
-          
-          请检查并修复问题
-          EOF
-          
-          cat alert.md
-      
-      - name: Send alert
-        run: |
-          # 发送告警通知
-          echo "发送 CI 失败告警..."
-  
-  # ==================== 每日报告 ====================
-  daily-report:
-    name: Daily Summary Report
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    
-    steps:
-      - name: Generate daily report
-        run: |
-          cat > daily_report.md << 'EOF'
-          # 📊 GitHub 每日活动报告
-          
-          ## 今天的活动摘要
-          
-          ### 📥 Pull Requests
-          - 新建: X 个
-          - 已合并: Y 个
-          - 已关闭: Z 个
-          
-          ### 🐛 Issues
-          - 新建: X 个
-          - 已解决: Y 个
-          
-          ### 💬 评论
-          - PR 评论: X 条
-          - Issue 评论: Y 条
-          
-          ### 🚀 部署
-          - 部署次数: X 次
-          - 回滚次数: Y 次
-          
-          ---
-          *报告生成时间: $(date +%Y-%m-%d\ %H:%M:%S)*
-          EOF
-          
-          cat daily_report.md
-      
-      - name: Send daily report
-        run: |
-          # 发送每日报告到微信
-          echo "发送每日报告..."
+          echo "## 🚨 CI 构建失败"
+          echo "仓库: ${{ github.repository }}"
+          echo "工作流: ${{ github.event.workflow_run.name }}"
