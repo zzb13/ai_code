@@ -1,16 +1,237 @@
-name: Notification
+name: Notifications
 
 on:
+  workflow_dispatch:  # 允许手动触发测试
+  pull_request:
+    types: [opened, closed, merged, reopened]
+  push:
+    branches: [main, develop]
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI Pipeline"]  # 匹配 ci.yml 的名称
     types: [completed]
 
 jobs:
-  notify:
+  # ==================== PR 通知 ====================
+  pr-notification:
+    name: PR Notification
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion != 'success'
+    if: github.event_name == 'pull_request'
+
     steps:
-      - name: Send to Feishu
+      - name: Send PR notification to Feishu
+        run: |
+          ACTION="${{ github.event.action }}"
+          case "$ACTION" in
+            opened)
+              TITLE="🔄 新的 Pull Request"
+              EMOJI="🔄"
+              COLOR="blue"
+              ;;
+            closed)
+              TITLE="❌ Pull Request 已关闭"
+              EMOJI="❌"
+              COLOR="red"
+              ;;
+            merged)
+              TITLE="✅ Pull Request 已合并"
+              EMOJI="✅"
+              COLOR="green"
+              ;;
+            reopened)
+              TITLE="🔓 Pull Request 已重新打开"
+              EMOJI="🔓"
+              COLOR="yellow"
+              ;;
+          esac
+
+          # 提取 PR 描述（限制长度）
+          BODY="${{ github.event.pull_request.body }}"
+          if [ -z "$BODY" ]; then
+            BODY="(无描述)"
+          fi
+          if [ ${#BODY} -gt 200 ]; then
+            BODY="${BODY:0:200}..."
+          fi
+
+          # 发送飞书卡片消息
+          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"config\": {\"wide_screen_mode\": true},
+                \"header\": {
+                  \"title\": {\"tag\": \"plain_text\", \"content\": \"${TITLE}\"},
+                  \"template\": \"${COLOR}\"
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**${{ github.repository }}**\n\n${EMOJI} **${{ github.event.pull_request.title }}**\n\n👤 **作者**: @${{ github.event.pull_request.user.login }}\n🔢 **PR #${{ github.event.pull_request.number }}**\n📝 **描述**: ${BODY}\n\n**分支**: `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"📊 查看 PR\"},
+                        \"type\": \"primary\",
+                        \"url\": \"${{ github.event.pull_request.html_url }}\"
+                      },
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"💬 查看文件变更\"},
+                        \"type\": \"default\",
+                        \"url\": \"${{ github.event.pull_request.html_url }}/files\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+  # ==================== 部署通知 ====================
+  deployment-notification:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send deployment notification
+        run: |
+          # 获取最近的提交信息
+          COMMITS="${{ github.event.head_commit.message }}"
+          if [ ${#COMMITS} -gt 200 ]; then
+            COMMITS="${COMMITS:0:200}..."
+          fi
+
+          # 发送部署通知
+          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"header\": {
+                  \"title\": {\"tag\": \"plain_text\", \"content\": \"🚀 代码已部署到生产环境\"},
+                  \"template\": \"green\"
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**${{ github.repository }}**\n\n📦 **最新提交已部署**\n\n👤 **推送者**: @${{ github.actor }}\n🔖 **Commit**: \`${{ github.sha }}\`\n📝 **提交信息**: ${COMMITS}\n\n⏰ **时间**: $(date +'%Y-%m-%d %H:%M:%S UTC')\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"🔗 查看 Commit\"},
+                        \"type\": \"primary\",
+                        \"url\": \"${{ github.event.head_commit.url }}\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+  # ==================== CI 通知 ====================
+  ci-notification:
+    name: CI Notification
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run'
+
+    steps:
+      - name: Send CI success notification
+        if: github.event.workflow_run.conclusion == 'success'
+        run: |
+          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"header\": {
+                  \"title\": {\"tag\": \"plain_text\", \"content\": \"✅ CI 构建成功\"},
+                  \"template\": \"green\"
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**${{ github.repository }}** CI 运行通过！\n\n👤 **触发者**: @${{ github.actor }}\n🔖 **Commit**: \`${{ github.event.workflow_run.head_sha }}\`\n📝 **提交**: ${{ github.event.workflow_run.head_commit.message }}\n\n⏱️ **耗时**: ${{ github.event.workflow_run.duration }}s\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"📊 查看详情\"},
+                        \"type\": \"primary\",
+                        \"url\": \"${{ github.event.workflow_run.html_url }}\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+      - name: Send CI failure notification
+        if: github.event.workflow_run.conclusion == 'failure'
+        run: |
+          curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"header\": {
+                  \"title\": {\"tag\": \"plain_text\", \"content\": \"🚨 CI 构建失败\"},
+                  \"template\": \"red\"
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**${{ github.repository }}** CI 运行失败！\n\n👤 **触发者**: @${{ github.actor }}\n🔖 **Commit**: \`${{ github.event.workflow_run.head_sha }}\`\n⚠️ **请尽快检查并修复问题**\n\n🔗 **[查看失败日志](${{ github.event.workflow_run.html_url }})**\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"🔗 查看日志\"},
+                        \"type\": \"primary\",
+                        \"url\": \"${{ github.event.workflow_run.html_url }}\"
+                      },
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {\"tag\": \"plain_text\", \"content\": \"📝 提交修复\"},
+                        \"type\": \"default\",
+                        \"url\": \"${{ github.event.workflow_run.html_url }}\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+  # ==================== 简单测试通知 ====================
+  test-notification:
+    name: Test Notification
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Send test notification
         run: |
           curl -X POST "${{ secrets.FEISHU_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
@@ -18,15 +239,15 @@ jobs:
               "msg_type": "interactive",
               "card": {
                 "header": {
-                  "title": {"tag": "plain_text", "content": "❌ CI 失败"},
-                  "template": "red"
+                  "title": {"tag": "plain_text", "content": "🧪 测试通知"},
+                  "template": "blue"
                 },
                 "elements": [
                   {
                     "tag": "div",
                     "text": {
                       "tag": "lark_md",
-                      "content": "**${{ github.repository }}** CI 运行失败\n\n📦 提交: ${{ github.event.workflow_run.head_commit.message }}\n👤 作者: ${{ github.actor }}\n🔗 [查看详情](${{ github.event.workflow_run.html_url }})"
+                      "content": "**通知系统测试成功！**\n\n✅ 飞书 Webhook 配置正确\n✅ GitHub Actions 连接正常\n\n你现在会收到：\n• 🔄 PR 通知\n• 🚀 部署通知\n• ✅ CI 成功通知\n• 🚨 CI 失败告警"
                     }
                   }
                 ]
