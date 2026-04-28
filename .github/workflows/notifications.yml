@@ -10,6 +10,9 @@ on:
     workflows: ["CI Pipeline"]  # 匹配 ci.yml 的名称
     types: [completed]
 
+permissions:
+  actions: read  # 读取 workflow_run 信息必需
+
 jobs:
   # ==================== PR 通知 ====================
   pr-notification:
