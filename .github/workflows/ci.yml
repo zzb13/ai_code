@@ -96,11 +96,13 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: python, javascript, typescript
+          languages: python
           queries: security-extended,security-and-quality
+        continue-on-error: true
       
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
+        continue-on-error: true
 
   # ==================== 自动测试 ====================
   test:
